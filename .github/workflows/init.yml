@@ -1,0 +1,117 @@
+name: Init Indian MicroCap Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up project files
+        run: |
+          mkdir -p indian-microcap-analysis notebooks
+
+          cat > indian-microcap-analysis/README.md << 'EOF'
+          # Indian MicroCap Analysis
+
+          This project analyzes Indian microcap stocks (market cap < ₹5,000 Cr) and
+          generates trading signals using fundamental and technical filters.
+
+          ## Features
+          - Fetch NSE/BSE stock data
+          - Filter by market cap
+          - Apply technical indicators (SMA, RSI, MACD)
+          - Generate buy/sell/hold signals
+          - Backtesting framework (future work)
+
+          ## Usage
+          ```bash
+          pip install -r requirements.txt
+          python main.py
+          ```
+          EOF
+
+          cat > indian-microcap-analysis/requirements.txt << 'EOF'
+          pandas
+          numpy
+          matplotlib
+          yfinance
+          nsetools
+          EOF
+
+          cat > indian-microcap-analysis/data_fetch.py << 'EOF'
+          import pandas as pd
+          from nsetools import Nse
+
+          nse = Nse()
+
+          def get_stock_info(symbol: str):
+              """Fetch stock quote from NSE"""
+              return nse.get_quote(symbol)
+
+          def get_all_stock_codes():
+              """Fetch list of all NSE stock codes"""
+              return list(nse.get_stock_codes().keys())[1:]  # skip header
+          EOF
+
+          cat > indian-microcap-analysis/analysis.py << 'EOF'
+          import pandas as pd
+
+          def filter_microcaps(data, cap_limit=5000):
+              """Filter stocks with market cap below given Cr limit"""
+              return data[data['marketCap'] < cap_limit]
+          EOF
+
+          cat > indian-microcap-analysis/strategy.py << 'EOF'
+          import pandas as pd
+
+          def simple_strategy(df):
+              """Example: Buy if last close > 50-day SMA"""
+              df['SMA50'] = df['Close'].rolling(50).mean()
+              signal = "BUY" if df['Close'].iloc[-1] > df['SMA50'].iloc[-1] else "SELL"
+              return signal
+          EOF
+
+          cat > indian-microcap-analysis/main.py << 'EOF'
+          from data_fetch import get_stock_info, get_all_stock_codes
+          from analysis import filter_microcaps
+          from strategy import simple_strategy
+
+          def main():
+              print("Fetching NSE stock list...")
+              codes = get_all_stock_codes()[:20]  # demo: first 20 stocks
+              data = []
+
+              for code in codes:
+                  try:
+                      info = get_stock_info(code)
+                      if info:
+                          data.append({
+                              "symbol": code,
+                              "marketCap": info.get("marketCap", 0)
+                          })
+                  except Exception as e:
+                      print(f"Error fetching {code}: {e}")
+
+              import pandas as pd
+              df = pd.DataFrame(data)
+
+              print("Filtering microcaps...")
+              microcaps = filter_microcaps(df)
+              print(microcaps.head())
+
+          if __name__ == "__main__":
+              main()
+          EOF
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Initialize Indian MicroCap Analysis project"
+          git push
