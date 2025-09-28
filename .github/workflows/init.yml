@@ -11,6 +11,12 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
+      - name: Detect default branch
+        id: branch
+        run: |
+          DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+          echo "branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+
       - name: Set up project files
         run: |
           mkdir -p indian-microcap-analysis notebooks
@@ -41,6 +47,7 @@ jobs:
           matplotlib
           yfinance
           nsetools
+          jupyter
           EOF
 
           cat > indian-microcap-analysis/data_fetch.py << 'EOF'
@@ -108,10 +115,66 @@ jobs:
               main()
           EOF
 
+          cat > notebooks/microcap_demo.ipynb << 'EOF'
+          {
+           "cells": [
+            {
+             "cell_type": "markdown",
+             "metadata": {},
+             "source": [
+              "# MicroCap Demo Notebook\\n",
+              "\\n",
+              "This notebook demonstrates fetching NSE stock data, filtering microcaps, and applying a simple strategy."
+             ]
+            },
+            {
+             "cell_type": "code",
+             "execution_count": null,
+             "metadata": {},
+             "outputs": [],
+             "source": [
+              "from indian-microcap-analysis.data_fetch import get_all_stock_codes, get_stock_info\\n",
+              "from indian-microcap-analysis.analysis import filter_microcaps\\n",
+              "import pandas as pd\\n",
+              "\\n",
+              "codes = get_all_stock_codes()[:10]\\n",
+              "data = []\\n",
+              "for code in codes:\\n",
+              "    try:\\n",
+              "        info = get_stock_info(code)\\n",
+              "        if info:\\n",
+              "            data.append({\\n",
+              "                'symbol': code,\\n",
+              "                'marketCap': info.get('marketCap', 0)\\n",
+              "            })\\n",
+              "    except Exception as e:\\n",
+              "        print(f'Error fetching {code}: {e}')\\n",
+              "\\n",
+              "df = pd.DataFrame(data)\\n",
+              "microcaps = filter_microcaps(df)\\n",
+              "microcaps"
+             ]
+            }
+           ],
+           "metadata": {
+            "kernelspec": {
+             "display_name": "Python 3",
+             "language": "python",
+             "name": "python3"
+            },
+            "language_info": {
+             "name": "python"
+            }
+           },
+           "nbformat": 4,
+           "nbformat_minor": 5
+          }
+          EOF
+
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add .
-          git commit -m "Initialize Indian MicroCap Analysis project"
-          git push
+          git commit -m "Initialize Indian MicroCap Analysis project" || echo "No changes to commit"
+          git push origin HEAD:${{ steps.branch.outputs.branch }}
